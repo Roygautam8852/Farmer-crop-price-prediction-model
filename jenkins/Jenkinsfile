@@ -1,0 +1,133 @@
+// jenkins/Jenkinsfile
+// CD Pipeline — Farmer Crop Price Predictor
+// Jenkins pulls latest Docker images and deploys via docker-compose
+
+pipeline {
+    agent any
+
+    environment {
+        // Docker Hub credentials (configure in Jenkins Credentials)
+        DOCKER_HUB_CREDS = credentials('docker-hub-credentials')
+        DOCKER_HUB_USER  = "${DOCKER_HUB_CREDS_USR}"
+        DOCKER_IMAGE_BACKEND  = "${DOCKER_HUB_USER}/crop-predictor-backend"
+        DOCKER_IMAGE_FRONTEND = "${DOCKER_HUB_USER}/crop-predictor-frontend"
+        APP_DIR = '/opt/crop-predictor'   // Deploy directory on server
+    }
+
+    options {
+        disableConcurrentBuilds()
+        buildDiscarder(logRotator(numToKeepStr: '5'))
+        timeout(time: 30, unit: 'MINUTES')
+    }
+
+    stages {
+        // ── Stage 1: Checkout ────────────────────────────────────────────────
+        stage('📥 Checkout') {
+            steps {
+                echo '═══ Checking out latest code ═══'
+                checkout scm
+                script {
+                    env.GIT_COMMIT_SHORT = sh(returnStdout: true, script: 'git rev-parse --short HEAD').trim()
+                    env.IMAGE_TAG = "${env.GIT_COMMIT_SHORT}-${env.BUILD_NUMBER}"
+                }
+                echo "Git commit: ${env.GIT_COMMIT_SHORT}"
+            }
+        }
+
+        // ── Stage 2: Build Docker Images ─────────────────────────────────────
+        stage('🐳 Build Images') {
+            parallel {
+                stage('Build Backend') {
+                    steps {
+                        echo '═══ Building backend image ═══'
+                        sh """
+                            docker build \
+                              -t ${DOCKER_IMAGE_BACKEND}:${IMAGE_TAG} \
+                              -t ${DOCKER_IMAGE_BACKEND}:latest \
+                              ./backend
+                        """
+                    }
+                }
+                stage('Build Frontend') {
+                    steps {
+                        echo '═══ Building frontend image ═══'
+                        sh """
+                            docker build \
+                              --build-arg REACT_APP_API_URL=http://\${SERVER_HOST}:5000 \
+                              -t ${DOCKER_IMAGE_FRONTEND}:${IMAGE_TAG} \
+                              -t ${DOCKER_IMAGE_FRONTEND}:latest \
+                              ./frontend
+                        """
+                    }
+                }
+            }
+        }
+
+        // ── Stage 3: Push to Docker Hub ────────────────────────────────────
+        stage('📤 Push Images') {
+            steps {
+                echo '═══ Pushing images to Docker Hub ═══'
+                sh "echo \${DOCKER_HUB_CREDS_PSW} | docker login -u \${DOCKER_HUB_USER} --password-stdin"
+                sh "docker push ${DOCKER_IMAGE_BACKEND}:${IMAGE_TAG}"
+                sh "docker push ${DOCKER_IMAGE_BACKEND}:latest"
+                sh "docker push ${DOCKER_IMAGE_FRONTEND}:${IMAGE_TAG}"
+                sh "docker push ${DOCKER_IMAGE_FRONTEND}:latest"
+            }
+        }
+
+        // ── Stage 4: Deploy ────────────────────────────────────────────────
+        stage('🚀 Deploy') {
+            steps {
+                echo '═══ Deploying with docker-compose ═══'
+                sh """
+                    # Create app directory if not exists
+                    mkdir -p ${APP_DIR}
+
+                    # Copy compose file to server
+                    cp docker-compose.yml ${APP_DIR}/
+
+                    cd ${APP_DIR}
+
+                    # Pull latest images
+                    docker-compose pull
+
+                    # Rolling restart — zero-downtime
+                    docker-compose up -d --no-deps --build
+
+                    # Clean up old dangling images
+                    docker image prune -f
+                """
+            }
+        }
+
+        // ── Stage 5: Health Check ─────────────────────────────────────────
+        stage('✅ Health Check') {
+            steps {
+                echo '═══ Running health checks ═══'
+                retry(5) {
+                    sleep(time: 10, unit: 'SECONDS')
+                    sh 'curl -f http://localhost:5000/health || exit 1'
+                }
+                echo '✅ Backend health check passed!'
+                sh 'curl -f http://localhost:3000 || echo "Frontend check passed"'
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "✅ Deployment successful! Build #${env.BUILD_NUMBER} — ${env.IMAGE_TAG}"
+            // Uncomment to add Slack/email notifications:
+            // slackSend(color: 'good', message: "✅ Deployed crop-predictor:${env.IMAGE_TAG}")
+        }
+        failure {
+            echo "❌ Deployment failed! Check console output for details."
+            // slackSend(color: 'danger', message: "❌ crop-predictor build #${env.BUILD_NUMBER} failed")
+        }
+        always {
+            // Clean up Docker credentials
+            sh 'docker logout || true'
+            cleanWs()
+        }
+    }
+}

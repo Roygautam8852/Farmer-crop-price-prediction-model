@@ -45,17 +45,20 @@ app.use((err, req, res, next) => {
 });
 
 // ── Connect to MongoDB then Start Server ───────────────────────────────────────
-mongoose
-  .connect(MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
-  .then(() => {
-    console.log(`✅ MongoDB connected: ${MONGO_URI}`);
-    app.listen(PORT, '0.0.0.0', () => {
-      console.log(`🚀 Server running on http://0.0.0.0:${PORT}`);
+// Only connect and listen if we are NOT in a test environment
+if (process.env.NODE_ENV !== 'test') {
+  mongoose
+    .connect(MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
+    .then(() => {
+      console.log(`✅ MongoDB connected: ${MONGO_URI}`);
+      app.listen(PORT, '0.0.0.0', () => {
+        console.log(`🚀 Server running on http://0.0.0.0:${PORT}`);
+      });
+    })
+    .catch((err) => {
+      console.error('❌ MongoDB connection failed:', err.message);
+      process.exit(1);
     });
-  })
-  .catch((err) => {
-    console.error('❌ MongoDB connection failed:', err.message);
-    process.exit(1);
-  });
+}
 
 module.exports = app; // Export for testing

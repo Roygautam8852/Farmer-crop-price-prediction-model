@@ -153,7 +153,7 @@ pipeline {
 
     post {
         success {
-            node {
+            script {
                 echo "╔════════════════════════════════════════╗"
                 echo "║ ✅ BUILD & DEPLOYMENT SUCCESSFUL       ║"
                 echo "║ Build #${BUILD_NUMBER}                 ║"
@@ -162,23 +162,17 @@ pipeline {
             }
         }
         failure {
-            node {
+            script {
                 echo "╔════════════════════════════════════════╗"
                 echo "║ ❌ BUILD FAILED                         ║"
                 echo "║ Build #${BUILD_NUMBER}                 ║"
                 echo "║ Check console output for details       ║"
                 echo "╚════════════════════════════════════════╝"
-                sh '''
-                    echo "📋 Failed container logs:"
-                    docker-compose logs || true
-                '''
             }
         }
         always {
-            node {
-                sh '''
-                    echo "Pipeline execution completed at $(date)"
-                '''
+            script {
+                echo "Pipeline execution completed at $(date)"
             }
         }
     }

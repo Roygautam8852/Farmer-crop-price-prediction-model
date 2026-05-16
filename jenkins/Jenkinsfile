@@ -152,27 +152,9 @@ pipeline {
     }
 
     post {
-        success {
-            script {
-                echo "╔════════════════════════════════════════╗"
-                echo "║ ✅ BUILD & DEPLOYMENT SUCCESSFUL       ║"
-                echo "║ Build #${BUILD_NUMBER}                 ║"
-                echo "║ Commit: ${GIT_COMMIT_SHORT}            ║"
-                echo "╚════════════════════════════════════════╝"
-            }
-        }
-        failure {
-            script {
-                echo "╔════════════════════════════════════════╗"
-                echo "║ ❌ BUILD FAILED                         ║"
-                echo "║ Build #${BUILD_NUMBER}                 ║"
-                echo "║ Check console output for details       ║"
-                echo "╚════════════════════════════════════════╝"
-            }
-        }
         always {
             script {
-                echo "Pipeline execution completed at $(date)"
+                echo "Pipeline execution completed"
             }
         }
     }

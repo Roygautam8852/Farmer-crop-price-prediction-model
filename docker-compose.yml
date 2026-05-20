@@ -1,7 +1,30 @@
-# Farmer Crop Price Predictor — Full Stack
+# Farmer Crop Price Predictor — Full Stack with Jenkins CI/CD
 # Run with: docker-compose up --build
 
 services:
+  # ── Jenkins CI/CD Server ──────────────────────────────────────────────────────
+  jenkins:
+    image: jenkins/jenkins:lts
+    container_name: crop_jenkins
+    restart: unless-stopped
+    user: "0"
+    ports:
+      - "8080:8080"
+      - "50000:50000"
+    environment:
+      - JENKINS_OPTS=--httpPort=8080
+    volumes:
+      - jenkins_home:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /usr/bin/docker:/usr/bin/docker
+    networks:
+      - crop_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/login"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
   # ── MongoDB ──────────────────────────────────────────────────────────────────
   mongo:
     image: mongo:7.0
@@ -60,6 +83,8 @@ services:
 # ── Volumes ───────────────────────────────────────────────────────────────────
 volumes:
   mongo_data:
+    driver: local
+  jenkins_home:
     driver: local
 
 # ── Network ───────────────────────────────────────────────────────────────────

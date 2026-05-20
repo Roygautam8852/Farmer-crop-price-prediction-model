@@ -103,7 +103,7 @@ export default function PriceChart({ crop, state }) {
     // Min and Max lines removed as per user request to only show Modal Price.
 
     return { labels: trendData.labels, datasets };
-  }, [trendData, crop, isFallback]);
+  }, [trendData, crop]); // Removed isFallback to fix ESLint warning
 
   const options = {
     responsive: true,

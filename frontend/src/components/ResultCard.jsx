@@ -31,9 +31,6 @@ function useCountUp(target, duration = 1200) {
 export default function ResultCard({ result }) {
   const animatedPrice = useCountUp(result.predicted_price);
 
-  const confidence = (
-    ((result.max_range - result.min_range) / result.predicted_price) * 100
-  ).toFixed(0);
 
   return (
     <div className="card result-card page-enter" style={{
